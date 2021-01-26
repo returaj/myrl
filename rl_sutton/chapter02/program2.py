@@ -34,13 +34,41 @@ class NonStationaryTestBed:
         return np.random.normal(mu, sigma)
 
 
-class BanditAlgo:
-    def __init__(self, testbed, horizon=1000, runs=2000):
-        self.testbed = testbed
+class Runner:
+    def __init__(self, horizon, runs=2000):
         self.horizon = horizon
         self.runs = runs
         self.parameters = [math.pow(2, i) for i in range(-7, 3)]
-        self.rewards = None
+        self.param_rwd_pair = None
+
+    def execute(self, cls, param, k):
+        testbed = NonStationaryTestBed(k)
+        algo = cls(testbed, horizon=self.horizon)
+        reward = algo.run_instance(param)
+        return reward
+
+    def run_with_params(self, cls, k=10):
+        start = time()
+        self.param_rwd_pair = []
+        with Pool(4) as pool:
+            for p in self.parameters:
+                fun_args = [(cls, p, k)] * self.runs
+                rewards = pool.starmap(self.execute, fun_args)
+                avg_rwd = sum(rewards) / self.runs
+                self.param_rwd_pair.append((p, avg_rwd))
+        end = time()
+        print(f"Total time taken : {end-start} sec")
+
+    def save(self, filepath):
+        with open(filepath, 'w') as fp:
+            for k, v in self.param_rwd_pair:
+                fp.write(f"{k}, {v}\n")
+
+
+class BanditAlgo:
+    def __init__(self, testbed, horizon=1000):
+        self.testbed = testbed
+        self.horizon = horizon
 
     def reset(self, param):
         raise NotImplementedError
@@ -51,38 +79,19 @@ class BanditAlgo:
     def update_epectation(self, param, arm, reward):
         raise NotImplementedError
 
-    def run_in_process(self, param):
-        rewards = 0
-        for r in range(1, self.runs+1):
-            self.reset(param)
-            inst_rwd = 0
-            for h in range(1, self.horizon+1):
-                a = self.select_arm(param)
-                rwd = self.testbed.sample_reward(a)
-                self.update_expectation(param, a, rwd)
-                inst_rwd += (rwd - inst_rwd) / h
-            rewards += (inst_rwd - rewards) / r
-        return rewards
-
-    def run(self):
-        start = time()
-#        rwd = []
-#        for p in self.parameters:
-#            rwd.append(self.run_in_process(p))
-        with Pool(4) as pool:
-            rwd = pool.map(self.run_in_process, self.parameters)
-        self.rewards = {k: v for k, v in zip(self.parameters, rwd)}
-        end = time()
-        print(f"Total time needed for completion: {end-start} sec")
-
-    def save(self, filepath):
-        with open(filepath, 'w') as fp:
-            for k, v in self.rewards.items():
-                fp.write(f"{k}, {v}\n")
+    def run_instance(self, param):
+        self.reset(param)
+        inst_rwd = 0
+        for h in range(1, self.horizon+1):
+            a = self.select_arm(param)
+            rwd = self.testbed.sample_reward(a)
+            self.update_expectation(param, a, rwd)
+            inst_rwd += (rwd - inst_rwd) / h
+        return inst_rwd
 
 
 class EpGreedySampleAvg(BanditAlgo):
-    def __init__(self, testbed, horizon=1000, runs=2000):
+    def __init__(self, testbed, horizon=1000):
         super().__init__(testbed, horizon, runs)
         self.k = testbed.number_of_arms()
         self.expect = None
@@ -107,7 +116,7 @@ class EpGreedySampleAvg(BanditAlgo):
 
 
 class EpGreedyConstantStep(BanditAlgo):
-    def __init__(self, testbed, alpha=0.1, horizon=1000, runs=2000):
+    def __init__(self, testbed, alpha=0.1, horizon=1000):
         super().__init__(testbed, horizon, runs)
         self.k = testbed.number_of_arms()
         self.alpha = alpha
@@ -115,7 +124,7 @@ class EpGreedyConstantStep(BanditAlgo):
 
     def reset(self, param):
         self.testbed.set_arms()
-        self.expect = [(0, i) for i in range(self.k)]
+        self.expect = [[0, i] for i in range(self.k)]
 
     def select_arm(self, param):
         if param > np.random.rand():
@@ -131,7 +140,7 @@ class EpGreedyConstantStep(BanditAlgo):
 
 
 class UCB(BanditAlgo):
-    def __init__(self, testbed, horizon=1000, runs=2000):
+    def __init__(self, testbed, horizon=1000):
         super().__init__(testbed, horizon, runs)
         self.k = testbed.number_of_arms()
         self.expect = None
@@ -161,7 +170,7 @@ class UCB(BanditAlgo):
 
 
 class OptimisticGreedy(BanditAlgo):
-    def __init__(self, testbed, alpha=0.1, horizon=1000, runs=2000):
+    def __init__(self, testbed, alpha=0.1, horizon=1000):
         super().__init__(testbed, horizon, runs)
         self.alpha = alpha
         self.k = testbed.number_of_arms()
@@ -184,7 +193,7 @@ class OptimisticGreedy(BanditAlgo):
 
 
 class GradientBandit(BanditAlgo):
-    def __init__(self, testbed, horizon=1000, runs=2000):
+    def __init__(self, testbed, horizon=1000):
         super().__init__(testbed, horizon, runs)
         self.k = testbed.number_of_arms()
         self.preference = None
@@ -216,23 +225,22 @@ class GradientBandit(BanditAlgo):
 
 
 def main():
-    testbed = NonStationaryTestBed(10)
+    runner = Runner(horizon=5000, runs=2000)
 
-    ep_greedy = EpGreedySampleAvg(testbed, horizon=10000, runs=2000)
-    ep_greedy.run()
-    ep_greedy.save('./ep_greedy.csv')
+    runner.run_with_params(EpGreedySampleAvg)
+    runner.save('./ep_greedy_smpl.csv')
 
-#    gradient_bandit = GradientBandit(testbed)
-#    gradient_bandit.run()
-#    gradient_bandit.save('./gradient_bandit.csv')
+    runner.run_with_params(EpGreedyConstantStep)
+    runner.save('./ep_greedy_const.csv')
 
-#    optimistic_greedy = OptimisticGreedy(testbed)
-#    optimistic_greedy.run()
-#    optimistic_greedy.save('./optimistic_greedy.csv')    
+    runner.run_with_params(GradientBandit)
+    runner.save('./gradient_bandit.csv')
 
-#    ucb = UCB(testbed)
-#    ucb.run()
-#    ucb.save('./ucb.csv')
+    runner.run_with_params(UCB)
+    runner.save('./ucb.csv')
+
+    runner.run_with_params(OptimisticGreedy)
+    runner.save('./opti_greedy.csv')
 
 
 if __name__ == '__main__':
