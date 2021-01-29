@@ -57,15 +57,11 @@ class ValueIteration:
         self.policy = np.zeros(ENV.win_stake+1)
 
     def optimal_value_evaluaion(self):
-        #policy_stable = False
         delta = 1
         while (delta > self.theta):
-        #while not policy_stable:
             delta = 0
-            #policy_stable = True
             for s in range(1, ENV.win_stake):
                 tmp = self.v[s]
-                #sa = self.policy[s]
                 state = ID2STATE[s]
                 rwd_trans, state_trans = state.get_transition()
                 max_v = 0; max_a = 0
@@ -82,8 +78,6 @@ class ValueIteration:
                 self.v[s] = max_v
                 self.policy[s] = max_a
                 delta = max(delta, abs(tmp - max_v))
-                #if max_a != sa:
-                #    policy_stable = False
 
     def optimal_policy(self):
         self.optimal_value_evaluaion()
