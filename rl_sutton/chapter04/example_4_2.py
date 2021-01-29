@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
 
-# Jacks car rental problem. Exercise 4.7
+# Jacks car rental problem. Example 4.2
 
 from multiprocessing import Pool
 import numpy as np
@@ -9,7 +9,7 @@ import sys
 
 
 class Environment:
-    def __init__(self, req1=3, ret1=3, req2=4, ret2=2, rent=10, cost=2, parking_cost=4, car_in_each_lot=10, max_transfer=5, max_car=20):
+    def __init__(self, req1=3, ret1=3, req2=4, ret2=2, rent=10, cost=2, max_transfer=5, max_car=20):
         self.req1 = req1
         self.req1_dist = None        
         self.ret1 = ret1
@@ -20,8 +20,6 @@ class Environment:
         self.ret2_dist = None
         self.rent = rent
         self.cost = cost
-        self.parking_cost = parking_cost
-        self.car_in_each_lot = car_in_each_lot
         self.max_transfer = max_transfer
         self.max_car = max_car
 
@@ -51,16 +49,13 @@ class Environment:
         req1, ret1 = self.get_station1_dist()
         req2, ret2 = self.get_station2_dist()
         min_action, max_action = -min(self.max_transfer, state.s2), min(self.max_transfer, state.s1)
-        min_rwd, max_rwd = -self.cost*max(max_action, -min_action) - 2*self.parking_cost, 2*self.max_car*self.rent
+        min_rwd, max_rwd = -self.cost*max(max_action, -min_action), 2*self.max_car*self.rent
         min_state, max_state = 0, (self.max_car + 1)*(self.max_car + 1)
         rwd_trans = np.zeros((max_action-min_action+1, max_rwd-min_rwd+1))
         state_trans = np.zeros((max_action-min_action+1, max_state-min_state))
         for a in range(min_action, max_action+1):
             c1, c2 = min(20, state.s1-a), min(20, state.s2+a)
-            if a > 0:
-                cost = self.cost * (a-1)
-            else:
-                cost = self.cost * abs(a)
+            cost = self.cost * abs(a)
             for rq1 in range(0, self.max_car+1):
                 for rt1 in range(0, self.max_car+1):
                     for rq2 in range(0, self.max_car+1):
@@ -78,10 +73,6 @@ class Environment:
                             else:
                                 rwd += self.rent * rq2
                                 s2 = min(self.max_car, c2-rq2 + rt2)
-                            if s1 > self.car_in_each_lot:
-                                rwd -= self.parking_cost
-                            if s2 > self.car_in_each_lot:
-                                rwd -= self.parking_cost
                             action_id = abs(min_action) + a
                             state_id = State(s1, s2).hash()
                             rwd_id = abs(min_rwd) + rwd
@@ -200,7 +191,7 @@ def map_id_to_state():
 
 def main():
     map_id_to_state()
-    with open('transition.pkl', 'wb') as fp:
+    with open('tranition.pkl', 'wb') as fp:
         pickle.dump(ID2STATE, fp)
     if not ID2STATE:
         with open('transition.pkl', 'rb') as fp:
