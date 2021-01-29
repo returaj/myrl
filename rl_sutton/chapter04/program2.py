@@ -54,7 +54,6 @@ class ValueIteration:
     def __init__(self, theta=1e-5):
         self.theta = theta
         self.v = np.zeros(ENV.win_stake + 1)
-        self.v[ENV.win_stake] = 1
         self.policy = np.zeros(ENV.win_stake+1)
 
     def optimal_value_evaluaion(self):
@@ -119,7 +118,7 @@ def main():
     map_id_to_state(0.4)
     vi = ValueIteration()
     vi.optimal_policy()
-    print(vi.policy)    
+    print(vi.v)    
 
 
 if __name__ == '__main__':
