@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-from multiprocessing import Pool
+# example : 5.1
+
 import matplotlib
 matplotlib.use('Agg')  # no UI backend
 import matplotlib.pyplot as plt
