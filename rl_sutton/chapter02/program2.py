@@ -92,7 +92,7 @@ class BanditAlgo:
 
 class EpGreedySampleAvg(BanditAlgo):
     def __init__(self, testbed, horizon=1000):
-        super().__init__(testbed, horizon, runs)
+        super().__init__(testbed, horizon)
         self.k = testbed.number_of_arms()
         self.expect = None
 
@@ -117,7 +117,7 @@ class EpGreedySampleAvg(BanditAlgo):
 
 class EpGreedyConstantStep(BanditAlgo):
     def __init__(self, testbed, alpha=0.1, horizon=1000):
-        super().__init__(testbed, horizon, runs)
+        super().__init__(testbed, horizon)
         self.k = testbed.number_of_arms()
         self.alpha = alpha
         self.expect = None
@@ -141,7 +141,7 @@ class EpGreedyConstantStep(BanditAlgo):
 
 class UCB(BanditAlgo):
     def __init__(self, testbed, horizon=1000):
-        super().__init__(testbed, horizon, runs)
+        super().__init__(testbed, horizon)
         self.k = testbed.number_of_arms()
         self.expect = None
         self.total_time = 0
@@ -171,7 +171,7 @@ class UCB(BanditAlgo):
 
 class OptimisticGreedy(BanditAlgo):
     def __init__(self, testbed, alpha=0.1, horizon=1000):
-        super().__init__(testbed, horizon, runs)
+        super().__init__(testbed, horizon)
         self.alpha = alpha
         self.k = testbed.number_of_arms()
         self.expect = None
@@ -194,33 +194,37 @@ class OptimisticGreedy(BanditAlgo):
 
 class GradientBandit(BanditAlgo):
     def __init__(self, testbed, horizon=1000):
-        super().__init__(testbed, horizon, runs)
+        super().__init__(testbed, horizon)
         self.k = testbed.number_of_arms()
         self.preference = None
-        self.avg = None
-        self.cnt = None
+        self.avg = 0
+        self.cnt = 0
 
     def reset(self, param):
         self.testbed.set_arms()
         self.preference = np.zeros(self.k)
-        self.avg = np.zeros(self.k)
-        self.cnt = np.zeros(self.k)
+        self.avg = 0
+        self.cnt = 0
 
     def select_arm(self, param):
-        greedy_arm = 0
+        exp = np.exp(self.preference)
+        prob = exp / np.sum(exp)
+        rand = np.random.rand()
+        cumsum = 0
         for a in range(self.k):
-            if self.preference[a] > self.preference[greedy_arm]:
-                greedy_arm = a
-        return greedy_arm
+            cumsum += prob[a]
+            if rand < cumsum:
+                return a
+        return 0
 
     def update_expectation(self, param, arm, rwd):
-        self.cnt[arm] += 1
-        self.avg[arm] += (rwd - self.avg[arm]) / self.cnt[arm]
+        self.cnt += 1
+        self.avg += (rwd - self.avg) / self.cnt
         rwd_diff = param * (rwd - self.avg)
         exp = np.exp(self.preference)
         prob = exp / np.sum(exp)
         self.preference -= rwd_diff * prob
-        self.preference[arm] += rwd_diff[arm]
+        self.preference[arm] += rwd_diff
 
 
 
@@ -228,19 +232,19 @@ def main():
     runner = Runner(horizon=5000, runs=2000)
 
     runner.run_with_params(EpGreedySampleAvg)
-    runner.save('./ep_greedy_smpl.csv')
+    runner.save('./stationary/ep_greedy_smpl.csv')
 
     runner.run_with_params(EpGreedyConstantStep)
     runner.save('./ep_greedy_const.csv')
 
     runner.run_with_params(GradientBandit)
-    runner.save('./gradient_bandit.csv')
+    runner.save('./stationary/gradient_bandit.csv')
 
     runner.run_with_params(UCB)
-    runner.save('./ucb.csv')
+    runner.save('./stationary/ucb.csv')
 
     runner.run_with_params(OptimisticGreedy)
-    runner.save('./opti_greedy.csv')
+    runner.save('./stationary/opti_greedy.csv')
 
 
 if __name__ == '__main__':
