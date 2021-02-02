@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 
-# example : 5.1
+# example : 5.3
 
 import matplotlib
 matplotlib.use('Agg')  # no UI backend
 import matplotlib.pyplot as plt
 import numpy as np
+import pickle as pkl
 
 
 # black jack with infinite deck
@@ -48,6 +49,18 @@ class State:
     def update(self, rwd):
         self.cnt += 1
         self.v += (rwd - self.v) / self.cnt
+
+
+class QState(State):
+    def __init__(self, dealer_showing, player_sum, has_usable_ace, action):
+        super().__init__(dealer_showing, player_sum, has_usable_ace)
+        self.action = action   # True: hit and False: stick
+
+    def hash(self):
+        if self.hashid is None:
+            self.hashid = (self.dealer_showing-1) + 10*(self.player_sum-12) \
+                          + 100*self.has_usable_ace + 200*self.action
+        return self.hashid
 
 
 class Dealer:
@@ -94,9 +107,9 @@ class Player:
         if self.policy is None:
             self.policy = {}
             # for not usable ace
-            self.policy[False] = [True]*(20-12) + [False]*(21-20+1)
+            self.policy[False] = np.zeros((10, 10), dtype=bool)
             # for usable ace
-            self.policy[True] = [True]*(20-12) + [False]*(21-20+1)
+            self.policy[True] = np.zeros((10, 10), dtype=bool)
         return self.policy
 
     def play(self, state):
@@ -105,17 +118,31 @@ class Player:
         dealer_showing = state.dealer_showing
         curr_sum = state.player_sum
         has_usable_ace = state.has_usable_ace
-        while curr_sum < 21 and policy[has_usable_ace][curr_sum-12]:
-            game_play.append(State(dealer_showing, curr_sum, has_usable_ace).hash())
+        action = state.action
+        while curr_sum <= 21:
+            game_play.append(QState(dealer_showing, curr_sum, has_usable_ace, action).hash())
+            if not action:
+                break
             card = self.env.hit()
             value = self.env.card_value(card, curr_sum)
             curr_sum += value
             if curr_sum > 21 and has_usable_ace:
                 curr_sum -= 10
                 has_usable_ace = False
-        if curr_sum <= 21:
-            game_play.append(State(dealer_showing, curr_sum, has_usable_ace).hash())
+            if curr_sum <= 21:
+                action = policy[has_usable_ace][dealer_showing-1][curr_sum-12]
         return (game_play, curr_sum)
+
+    def update_policy(self, state, map_id_to_state):
+        s1 = state.hash(); state1 = map_id_to_state[s1]
+        s2 = s1%200 if s1>=200 else (200+s1); state2 = map_id_to_state[s2]
+        assert state1.has_usable_ace == state2.has_usable_ace and \
+               state1.dealer_showing == state2.dealer_showing and \
+               state1.player_sum == state2.player_sum and \
+               state1.action != state2.action
+        policy = self.get_policy()
+        policy[state.has_usable_ace][state.dealer_showing-1][state.player_sum-12] = \
+                state1.action if state1.v > state2.v else state2.action
 
 
 class Episode:
@@ -124,10 +151,11 @@ class Episode:
 
     def initialize_start_states(self):
         start_states = []
-        for has_usable_ace in range(0, 2):
-            for psum in range(12, 22):
-                for dshow in range(1, 11):
-                    start_states.append(State(dshow, psum, has_usable_ace))
+        for action in range(0, 2):
+            for has_usable_ace in range(0, 2):
+                for psum in range(12, 22):
+                    for dshow in range(1, 11):
+                        start_states.append(QState(dshow, psum, has_usable_ace==1, action==1))
         np.random.shuffle(start_states)
         return start_states
 
@@ -155,11 +183,12 @@ class MonteCarloPrediction:
 
     def evaluate(self, num_episodes):
         map_id_to_states = {}
-        for has_usable_state in range(0, 2):
-            for psum in range(12, 22):
-                for dshow in range(1, 11):
-                    state = State(dshow, psum, has_usable_state)
-                    map_id_to_states[state.hash()] = state
+        for action in range(0, 2):
+            for has_usable_state in range(0, 2):
+                for psum in range(12, 22):
+                    for dshow in range(1, 11):
+                        state = QState(dshow, psum, has_usable_state==1, action==1)
+                        map_id_to_states[state.hash()] = state
         env = Environment()
         ep = Episode()
         player = Player(env)
@@ -171,23 +200,22 @@ class MonteCarloPrediction:
                 G += R
                 state = map_id_to_states[game_play[i]]
                 state.update(G)
+                player.update_policy(state, map_id_to_states)
                 R = 0
-        return map_id_to_states
+        return player.get_policy()
 
     def save_figures(self):
         num_ep = 500_000
-        map_id_to_states = self.evaluate(num_ep)
-        y = list(range(12, 22))
-        x = list(range(1, 11))
+        optimal_policy = self.evaluate(num_ep)
+        x = list(range(12, 22))
+        y = list(range(1, 11))
         X, Y = np.meshgrid(x, y)
-        Z_usable_ace = np.zeros((10, 10))
-        Z_not_usable_ace = np.zeros((10, 10))
-        for k, v in map_id_to_states.items():
-            if v.has_usable_ace:
-                Z = Z_usable_ace
-            else:
-                Z = Z_not_usable_ace
-            Z[v.player_sum-12][v.dealer_showing-1] = v.v
+        Z_usable_ace = optimal_policy[True]
+        Z_not_usable_ace = optimal_policy[False]
+        with open('usable_ace.pkl', 'wb') as fp:
+            pkl.dump(Z_usable_ace, fp)
+        with open('not_usable_ace.pkl', 'wb') as fp:
+            pkl.dump(Z_not_usable_ace, fp)
         fig = plt.figure(figsize=(6,6))
         ax1 = fig.add_subplot(121, projection='3d')
         ax2 = fig.add_subplot(122, projection='3d')
@@ -195,7 +223,7 @@ class MonteCarloPrediction:
         ax1.set_title(f'Not usable ace: {num_ep}')
         ax2.plot_surface(X, Y, Z_usable_ace)
         ax2.set_title(f'Usable ace: {num_ep}')
-        plt.savefig("figure5_1.png")
+        plt.savefig("figure5_3.png")
 
 
 def main():
