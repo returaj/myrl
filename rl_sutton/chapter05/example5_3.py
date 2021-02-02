@@ -148,6 +148,7 @@ class Player:
 class Episode:
     def __init__(self):
         self.start_states = self.initialize_start_states()
+        self.start = self.select_start() 
 
     def initialize_start_states(self):
         start_states = []
@@ -159,9 +160,14 @@ class Episode:
         np.random.shuffle(start_states)
         return start_states
 
+    def select_start(self):
+        i = -1; total_nums = len(self.start_states)
+        while True:
+            i = (i+1) % total_nums
+            yield self.start_states[i]
+
     def generate(self, player, dealer):
-        total_start_states = len(self.start_states)
-        start = self.start_states[np.random.randint(0, total_start_states)]
+        start = next(self.start)
         game_play, player_sum = player.play(start)
         if player_sum == 21:   # wins by reaching 21
             return (game_play, 1)
