@@ -54,6 +54,7 @@ class Runner:
             for p in self.parameters:
                 fun_args = [(cls, p, k)] * self.runs
                 rewards = pool.starmap(self.execute, fun_args)
+                assert len(rewards) == self.runs
                 avg_rwd = sum(rewards) / self.runs
                 self.param_rwd_pair.append((p, avg_rwd))
         end = time()
@@ -232,19 +233,19 @@ def main():
     runner = Runner(horizon=5000, runs=2000)
 
     runner.run_with_params(EpGreedySampleAvg)
-    runner.save('./stationary/ep_greedy_smpl.csv')
+    runner.save('./non_stationary/ep_greedy_smpl.csv')
 
     runner.run_with_params(EpGreedyConstantStep)
-    runner.save('./ep_greedy_const.csv')
+    runner.save('./non_stationary/ep_greedy_const.csv')
 
     runner.run_with_params(GradientBandit)
-    runner.save('./stationary/gradient_bandit.csv')
+    runner.save('./non_stationary/gradient_bandit.csv')
 
     runner.run_with_params(UCB)
-    runner.save('./stationary/ucb.csv')
+    runner.save('./non_stationary/ucb.csv')
 
     runner.run_with_params(OptimisticGreedy)
-    runner.save('./stationary/opti_greedy.csv')
+    runner.save('./non_stationary/opti_greedy.csv')
 
 
 if __name__ == '__main__':
