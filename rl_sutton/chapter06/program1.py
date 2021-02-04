@@ -19,7 +19,7 @@ EXERCISE_6_9_1 = {0: (-1, 0), 1: (0, 1), 2: (1, 0), 3: (0, -1), 4: (1, 1), 5: (-
 EXERCISE_6_9_2 = {0: (-1, 0), 1: (0, 1), 2: (1, 0), 3: (0, -1), 4: (1, 1), 5: (-1, -1), 6: (1, -1), 7: (-1, 1), 8: (0, 0)}
 
 # type of action North, South, East, West movement
-MAP_ACTION = EXERCISE_6_9_1 
+MAP_ACTION = EXERCISE_6_9_1
 
 
 class Environment:
@@ -120,6 +120,19 @@ class TD0:
                 q = next_q
         return self.policy
 
+    def estimate_q_learning(self, episodes=3000):
+        for ep in range(1, episodes+1):
+            x, y = self.env.get_start()
+            while not self.env.is_goal(x, y):
+                a = self.select_action(x, y)
+                n_x, n_y, rwd = self.env.get_new_pos(x, y, a)
+                q = self.map_id_to_qstate[QState(x, y, a).hash()]
+                n_q = self.map_id_to_qstate[QState(n_x, n_y, self.policy[n_x][n_y]).hash()]
+                q.update(rwd, n_q.q)
+                self.update_policy(q)
+                x, y = n_x, n_y
+        return self.policy
+
 
 def save_figure(policy, env):
     X, Y = [], []
@@ -147,7 +160,10 @@ def save_figure(policy, env):
 def main():
     env = Environment()
     td0 = TD0(env)
+    ## TD0 algorithm takes longer episodes to converge, approx 3000 episodes to converge
     policy = td0.estimate(8000, stochastic=False)
+    ## Q learning is faster it takes much less number of episodes to converge to optimal. approx 200 episodes
+    # policy = td0.estimate_q_learning(200)
     save_figure(policy, env)
 
 
