@@ -114,6 +114,7 @@ class TD0:
             while not self.env.is_goal(q.x, q.y):
                 next_x, next_y, rwd = self.env.get_new_pos(q.x, q.y, q.a, stochastic)
                 next_a = self.select_action(next_x, next_y)
+                # this is equal to max(a) q(n_x, n_y, a)
                 next_q = self.map_id_to_qstate[QState(next_x, next_y, next_a).hash()]
                 q.update(rwd, next_q.q)
                 self.update_policy(q)
