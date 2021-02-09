@@ -148,15 +148,15 @@ def save_figure(x, n_steps, v1, v2):
     lines = ['-', '--', '-.', 'o-', 'v-']
     fig = plt.figure()
     ax = fig.add_subplot(1, 1, 1)
-    ax.set_ylim([0, 30])
+#    ax.set_ylim([0, 30])
     for i in range(len(n_steps)):
         ax.plot(x, v1[i], 'r'+lines[i], label=f"per_inst-{n_steps[i]}")
         ax.plot(x, v2[i], 'b'+lines[i], label=f"sample-{n_steps[i]}")
-    fig.suptitle('Off Policy: PerInstance Vs Simple Sampling Method')
+    fig.suptitle('Off Policy: PerInstance Vs Simple Sampling Method with deterministic action')
     plt.xlabel('alpha')
     plt.ylabel('Avg RMS error over 19 states and first 10 episodes')
     plt.legend()
-    plt.savefig('figure7_10.png')
+    plt.savefig('figure7_10_1.png')
 
 
 def experiment(offpolicy, policy, vtrue):
@@ -190,7 +190,8 @@ def experiment(offpolicy, policy, vtrue):
 def main():
     nodes = 19
     offpolicy = [0] + [1/2]*nodes + [0]
-    policy = [0] + [2/3]*5 + [1/2]*4 + [1]*10 + [0]
+    policy = [0] + [2/3]*5 + [1/2]*4 + [1]*10 + [0]  # some some states take deterministic action
+#    policy = [0] + [2/3]*nodes + [0]    # stochastic policy
     total_nodes = len(policy)
 
     dp = DP(total_nodes, 2, policy)
