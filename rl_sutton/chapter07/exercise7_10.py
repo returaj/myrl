@@ -164,7 +164,7 @@ def main():
     policy = [0] + [1]*nodes + [0]
     total_nodes = len(policy)
 
-    dp = DP(total_nodes, offpolicy)
+    dp = DP(total_nodes, policy)
     vtrue = dp.value_prediction()
 
     alphas = np.linspace(0, 0.5, 6)
