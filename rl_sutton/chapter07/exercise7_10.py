@@ -8,9 +8,10 @@ import math
 
 
 class DP:
-    def __init__(self, nodes, policy):
+    def __init__(self, nodes, success_rwd, policy):
         self.nodes = nodes
         self.policy = policy
+        self.success_rwd = success_rwd
         self.prob, self.rwd = self.initialize()
 
     def is_terminal(self, curr):
@@ -25,7 +26,7 @@ class DP:
             prob[1][s][s+1] = 1
             prob[0][s][s-1] = 1
             if self.is_terminal(s+1):
-                rwd[1][s] = 1
+                rwd[1][s] = self.success_rwd
         return prob, rwd
 
     def value_prediction(self, ep=0.001):
@@ -107,7 +108,7 @@ class OffPolicyMethod:
                 t += 1
         return v
 
-    def estimate_using_simple_sampling(self, policy, n, alpha, gama=1, episodes=100):
+    def estimate_using_simple_sampling(self, policy, n, alpha, gama=1, episodes=10):
         v = np.zeros(self.nodes)
         for ep in range(1, episodes+1):
             T = 10000 # max value
@@ -135,9 +136,9 @@ class OffPolicyMethod:
                             assert a == 1
                             r *= policy[s] / self.offpolicy[s]
                         G = gama*G + rwd_history[i]
-                    v[state_history[update_t]] += alpha*(r*G - v[state_history[update_t]])
+                    v[state_history[update_t]] += alpha*r*(G - v[state_history[update_t]])
                     val = v[state_history[update_t]]
-                    v[state_history[update_t]] = min(val, 1e5)
+                    v[state_history[update_t]] = min(val, 1e2)  # this is to limit state value
                 curr = next_state; off_action = next_action
                 t += 1
         return v
@@ -147,7 +148,7 @@ def save_figure(x, n_steps, v1, v2):
     lines = ['-', '--', '-.', 'o-', 'v-']
     fig = plt.figure()
     ax = fig.add_subplot(1, 1, 1)
-    ax.set_ylim([0, 2])
+    ax.set_ylim([0, 30])
     for i in range(len(n_steps)):
         ax.plot(x, v1[i], 'r'+lines[i], label=f"per_inst-{n_steps[i]}")
         ax.plot(x, v2[i], 'b'+lines[i], label=f"sample-{n_steps[i]}")
@@ -158,21 +159,16 @@ def save_figure(x, n_steps, v1, v2):
     plt.savefig('figure7_10.png')
 
 
-def main():
-    nodes = 5
-    offpolicy = [0] + [1/2]*nodes + [0]
-    policy = [0] + [1]*nodes + [0]
-    total_nodes = len(policy)
+def experiment(offpolicy, policy, vtrue):
+    total_nodes = len(offpolicy)
+    nodes = total_nodes - 2
 
-    dp = DP(total_nodes, policy)
-    vtrue = dp.value_prediction()
-
-    alphas = np.linspace(0, 0.5, 6)
-    n_steps = [1, 2, 4, 8, 16]
+    alphas = np.linspace(0, 0.5, 11)
+    n_steps = [1, 2, 4, 8]
     v_ss = np.zeros((len(n_steps), len(alphas)))
     v_pi = np.zeros((len(n_steps), len(alphas)))
 
-    env = Environment(total_nodes, 1, 0)
+    env = Environment(total_nodes, 2, 0)
     off_method = OffPolicyMethod(env, offpolicy)
 
     for npos in range(0, len(n_steps)):
@@ -188,8 +184,19 @@ def main():
                 err_simple_sample += (rms_simple_sample - err_simple_sample) / run
             v_pi[npos, apos] = err_per_instance
             v_ss[npos, apos] = err_simple_sample
+    return alphas, n_steps, v_pi, v_ss
 
 
+def main():
+    nodes = 19
+    offpolicy = [0] + [1/2]*nodes + [0]
+    policy = [0] + [2/3]*5 + [1/2]*4 + [1]*10 + [0]
+    total_nodes = len(policy)
+
+    dp = DP(total_nodes, 2, policy)
+    vtrue = dp.value_prediction()
+
+    alphas, n_steps, v_pi, v_ss = experiment(offpolicy, policy, vtrue)
     save_figure(alphas, n_steps, v_pi, v_ss)
 
 
