@@ -1,4 +1,3 @@
-#! /usr/bin/env python3
 
 import numpy as np
 import matplotlib
@@ -10,10 +9,14 @@ ACTIONS = {0: (1, 0), 1: (-1, 0), 2: (0, 1), 3: (0, -1)}
 
 
 class Environment:
-    def __init__(self, grid, block=1, start=2, goal=3):
-        self.grid = grid
+    def __init__(self, grid1, grid2, block=1, start=2, goal=3):
+        self.grid1, self.grid2 = grid1, grid2
+        self.grid = grid1
         self.block = block
         self.start_pos, self.goal_pos = self.find_terminal(start, goal)
+
+    def update_grid(self):
+        self.grid = self.grid2
 
     def get_grid_shape(self):
         return self.grid.shape
@@ -127,16 +130,19 @@ class Agent:
             exploration_rwd = rwd + k*np.sqrt(time_passed - time)
             G = exploration_rwd + gama*nqmax
             self.q_table[a, x, y] += alpha*(G - self.q_table[a, x, y])
-            self.update_policy(x, y)
+            self.update_policy(x, y)    
 
-    def planning_learning(self, planning_steps, episodes, gama, alpha, ep, k=0.1, is_dyna_q_plus=False):
-        len_of_episode = []
+    # gama < 1 is required to make sure that agent finds shortest path, if gama = 1 there is no insentive for
+    # the agent to find shortest path
+    def planning_learning(self, planning_steps, time_frame, gama, alpha, ep, change, k=0.0001, is_dyna_q_plus=False):
         time_passed = 0
-        for e in range(1, episodes+1):
-            episode_time = 0
+        cum_reward = [0]
+        while time_passed < time_frame:
+            if time_passed == change:
+                self.env.update_grid()
             cx, cy = self.env.start_pos
-            while not self.env.is_goal(cx, cy):
-                episode_time += 1; time_passed += 1
+            while (not self.env.is_goal(cx, cy)) and (time_passed < time_frame):
+                time_passed += 1
                 ca = self.ep_greedy(cx, cy, ep)
                 nx, ny, rwd = self.env.sample(cx, cy, ca)
                 nqmax = self.q_table[self.policy[nx, ny], nx, ny]
@@ -149,70 +155,73 @@ class Agent:
                     self.dyna_q_plus_planning(planning_steps, time_passed, gama, alpha, k)
                 else:
                     self.dyna_q_planning(planning_steps, gama, alpha)
-            len_of_episode.append(episode_time)
-        return len_of_episode
+                cum_reward.append(cum_reward[-1] + rwd)
+        return cum_reward
 
-    def dyna_q(self, planning_steps, episodes, gama=0.95, alpha=0.1, ep=0.1):
+    def dyna_q(self, planning_steps, time_frame, change, gama=0.95, alpha=0.7, ep=0.1):
         self.reset()
-        len_of_episode = self.planning_learning(planning_steps, episodes, gama, alpha, ep)
-        return len_of_episode
+        cum_reward = self.planning_learning(planning_steps, time_frame, gama, alpha, ep, change)
+        return cum_reward
 
-    def dyna_q_plus(self, planning_steps, episodes, gama=0.95, alpha=0.1, ep=0.1, k=0.0001):
+    def dyna_q_plus(self, planning_steps, time_frame, change, gama=0.95, alpha=0.7, ep=0.1, k=1e-5):
         self.reset(is_model_init=True)
-        len_of_episode = self.planning_learning(planning_steps, episodes, gama, alpha, ep, k, True)
-        return len_of_episode
+        cum_reward = self.planning_learning(planning_steps, time_frame, gama, alpha, ep, change, k, True)
+        return cum_reward
 
 
-def example8_4():
-    grid = np.array([[0, 0, 0, 0, 0, 0, 0, 1, 3],
-                     [0, 0, 1, 0, 0, 0, 0, 1, 0],
-                     [2, 0, 1, 0, 0, 0, 0, 1, 0],
-                     [0, 0, 1, 0, 0, 0, 0, 0, 0],
-                     [0, 0, 0, 0, 0, 1, 0, 0, 0],
-                     [0, 0, 0, 0, 0, 0, 0, 0, 0]])
-    env = Environment(grid)
-    agent = Agent(env)
-    print(agent.dyna_q_plus(5, 50))
-
-
-def length(agent, planning_steps, episodes, runs):
-    length = np.zeros(episodes)
+def length(algo, time_frame, runs, planning_step):
+    avg = np.zeros(time_frame+1)
+    change = 1000
     for run in range(1, runs+1):
         np.random.seed(run)
-        length += (agent.dyna_q(planning_steps, episodes) - length) / run
-    return length
+        avg += (algo(planning_step, time_frame, change) - avg) / run
+    return avg
 
 
-def example8_1():
-    grid = np.array([[0, 0, 0, 0, 0, 0, 0, 1, 3],
-                     [0, 0, 1, 0, 0, 0, 0, 1, 0],
-                     [2, 0, 1, 0, 0, 0, 0, 1, 0],
-                     [0, 0, 1, 0, 0, 0, 0, 0, 0],
-                     [0, 0, 0, 0, 0, 1, 0, 0, 0],
-                     [0, 0, 0, 0, 0, 0, 0, 0, 0]])
-    env = Environment(grid)
+def main():
+    grid1 = np.array([[0, 0, 0, 0, 0, 0, 0, 0, 3],
+                      [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                      [1, 1, 1, 1, 1, 1, 1, 1, 0],
+                      [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 2, 0, 0, 0, 0, 0]])
+
+    grid2 = np.array([[0, 0, 0, 0, 0, 0, 0, 0, 3],
+                      [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                      [0, 1, 1, 1, 1, 1, 1, 1, 1],
+                      [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 2, 0, 0, 0, 0, 0]])
+
+    env = Environment(grid1, grid2)
     agent = Agent(env)
 
-    runs = 30
-    #print(agent.dyna_q(5, 50))
-    len_of_episode_0_planning = length(agent, 0, 50, 30)
-    len_of_episode_5_planning = length(agent, 5, 50, 30)
-    len_of_episode_50_planning = length(agent, 50, 50, 30)
-    episodes = list(range(1, 50+1))
+    runs = 20
+    time_frame = 3000
+    planning_step = 5
+
+    cum_rwd_dyna_q = length(agent.dyna_q, time_frame, runs, planning_step)
+    cum_rwd_dyna_q_plus = length(agent.dyna_q_plus, time_frame, runs, planning_step)
+
+    time_step = list(range(0, time_frame+1))
 
     fig = plt.figure()
     ax = fig.add_subplot(1, 1, 1)
-    ax.set_ylim([14, 700])
-    ax.plot(episodes, len_of_episode_0_planning, 'b-', label="0 planning steps")
-    ax.plot(episodes, len_of_episode_5_planning, 'g-', label="5 planning steps")
-    ax.plot(episodes, len_of_episode_50_planning, 'r-', label="50 planning steps")
-    fig.suptitle("DynaQ agents")
-    plt.xlabel("Episode")
-    plt.ylabel("Steps per episode")
+    #ax.set_ylim([0, 200])
+
+    # dyna_q
+    ax.plot(time_step, cum_rwd_dyna_q, 'b-', label="dyna_q")
+    # dyna_q_plus
+    ax.plot(time_step, cum_rwd_dyna_q_plus, 'r-', label="dyna_q+")
+
+    fig.suptitle("DynaQ+ vs DynaQ agents k=1e-5, alpha=0.7, ep=0.1, planning_step=5")
+    plt.xlabel("Time Steps")
+    plt.ylabel("Cumulative reward")
     plt.legend()
-    plt.savefig('figure8_1.png')
+    plt.savefig('figure8_2.png')
 
 
 if __name__ == '__main__':
-    example8_4()
+    main()
+
 
