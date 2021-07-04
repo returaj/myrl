@@ -1,0 +1,39 @@
+map: "BreakoutDeterministic-v4"
+
+model_path: "./q_model_20_1"
+
+max_episode_length: 5_000
+
+action_repeat: 3
+
+gama: 0.99
+
+train:
+  replay_memory_size: 10_000
+  batch_run: 10 
+  batch_size: 32
+  replay_start_size: 100
+  network_update_freq: 100
+  episodes: 100
+  ep:
+    start: 1
+    final: 0.1
+    num_frames: 1_000
+  debug:
+    time: 20
+  save_model_episode: 20
+
+play:
+  ep: 0.01
+  render_time: 0.1
+  debug:
+    time: 1
+
+image:
+  history: 4
+  skip: 2
+  in_size: 84
+
+ram:
+  history: 2
+  skip: 0

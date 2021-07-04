@@ -1,0 +1,37 @@
+map: "CartPole-v0"
+
+model_path: "./cartpole/cartpole_10_100"
+
+max_episode_length: 5_000
+
+action_repeat: 1
+
+gama: 0.99
+
+train:
+  replay_memory_size: 10_000
+  batch_run: 10 
+  batch_size: 32
+  replay_start_size: 1000
+  network_update_freq: 100
+  episodes: 1000
+  ep:
+    start: 1
+    final: 0.1
+    num_frames: 1_000
+  debug:
+    time: 5
+  save_model_episode: 20
+
+play:
+  ep: 0.001
+  render_time: 0.1
+  debug:
+    time: 1
+
+image:
+  history: 4
+  in_size: 84
+
+ram:
+  history: 2
